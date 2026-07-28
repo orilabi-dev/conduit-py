@@ -30,20 +30,34 @@ jobs:
           if-no-files-found: error
 
   publish-testpypi:
-    name: Publish to TestPyPI
+    name: Rehearse publish on TestPyPI
     needs: build
     runs-on: ubuntu-latest
     environment:
       name: testpypi
-      url: https://test.pypi.org/project/conduit-py/
+      url: https://test.pypi.org/project/conduit-py-orilabi-dev/
     permissions:
       id-token: write
     steps:
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
         with:
-          name: dist
-          path: dist/
+          python-version: "3.13"
+          enable-cache: true
+
+      # "conduit-py" is already registered on TestPyPI by an unrelated
+      # project, so this job builds a throwaway package under a different
+      # name purely to rehearse the OIDC trusted-publishing mechanics.
+      # `module-name` in pyproject.toml keeps the importable package as
+      # `conduit_py` regardless of the distribution name used here.
+      - name: Rename project for TestPyPI dry-run
+        run: sed -i 's/^name = .*/name = "conduit-py-orilabi-dev"/' pyproject.toml
+
+      - name: Build sdist and wheel
+        run: uv build
 
       - name: Publish to TestPyPI
         uses: pypa/gh-action-pypi-publish@release/v1
