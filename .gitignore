@@ -1,0 +1,20 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Secrets / credentials
+credentials.json
+*credentials*.json
+token.json
+*.pem
+.env
+
+# OS
+.DS_Store
