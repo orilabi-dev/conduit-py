@@ -36,3 +36,33 @@ def test_coerces_string_paths_to_path_objects(tmp_path):
 
     _, kwargs = mock_auth.call_args
     assert kwargs["oauth_client_path"] == tmp_path / "oauth.json"
+
+
+def test_cloud_is_none_when_no_project_name_given():
+    with patch(
+        "conduit_py.google.client.GoogleAuthManager.authenticate",
+        return_value=MagicMock(),
+    ), patch("conduit_py.google.client.WorkspaceClient"), patch(
+        "conduit_py.google.client.CloudClient"
+    ) as mock_cloud_cls:
+        client = GoogleClient(scopes=[SheetsScope.WRITE])
+
+    mock_cloud_cls.assert_not_called()
+    assert client.cloud is None
+
+
+def test_cloud_is_built_when_project_name_given():
+    credentials = MagicMock()
+
+    with patch(
+        "conduit_py.google.client.GoogleAuthManager.authenticate",
+        return_value=credentials,
+    ), patch("conduit_py.google.client.WorkspaceClient"), patch(
+        "conduit_py.google.client.CloudClient"
+    ) as mock_cloud_cls:
+        client = GoogleClient(scopes=[SheetsScope.WRITE], project_name="test-project")
+
+    mock_cloud_cls.assert_called_once_with(
+        credentials=credentials, project_name="test-project"
+    )
+    assert client.cloud is mock_cloud_cls.return_value

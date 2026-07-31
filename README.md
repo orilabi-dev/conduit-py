@@ -8,6 +8,9 @@ Currently supported:
   caching), and service account credentials.
 - **Google Workspace**: Sheets (`create_sheet`). Docs and Drive scopes are defined but the
   corresponding services are not yet implemented.
+- **Google Cloud**: BigQuery (`query_and_wait`, `query`) and Secret Manager (`create_secret`,
+  `add_secret_version`, `access_secret_version`). Requires `project_name` (see
+  [Google Cloud](#google-cloud) below).
 
 ## Install
 
@@ -30,6 +33,41 @@ google = Conduit.google(
 sheet = google.workspace.sheets.create_sheet("My Sheet")
 print(sheet["spreadsheetId"])
 ```
+
+### Google Cloud
+
+Pass `project_name` to `Conduit.google(...)` to also get a `.cloud` client exposing `.bigquery` and
+`.secret_manager`. If `project_name` is omitted, `.cloud` is `None`.
+
+```python
+from conduit_py import Conduit
+
+google = Conduit.google(
+    scopes=["https://www.googleapis.com/auth/cloud-platform"],
+    oauth_client_path="path/to/client_secret.json",
+    token_path="path/to/token.json",
+    project_name="my-gcp-project",
+)
+
+# BigQuery
+rows = google.cloud.bigquery.query_and_wait("SELECT 1 AS value")
+for row in rows:
+    print(row.value)
+
+# Secret Manager
+google.cloud.secret_manager.create_secret("my-secret")
+google.cloud.secret_manager.add_secret_version("my-secret", payload="hunter2")
+value = google.cloud.secret_manager.access_secret_version("my-secret")
+print(value.decode())
+```
+
+Cloud services aren't covered by the `GoogleScopes` enum yet — pass the raw scope string(s) your
+project needs (e.g. the broad `cloud-platform` scope above, or narrower BigQuery/Secret Manager
+scopes if you want to limit access).
+
+`BigQueryService.query` starts a query job and returns immediately without waiting for it to
+finish (call `.result()` on the returned job yourself); `query_and_wait` blocks until the query
+completes and returns the result rows directly.
 
 ### Authentication
 

@@ -9,6 +9,7 @@ from enum import Enum
 from pathlib import Path
 
 from conduit_py.google.auth.manager import GoogleAuthManager
+from conduit_py.google.cloud.client import CloudClient
 from conduit_py.google.workspace.client import WorkspaceClient
 
 
@@ -18,7 +19,8 @@ class GoogleClient:
     On construction, resolves credentials for the requested scopes via
     ``GoogleAuthManager.authenticate`` (service account > OAuth > ADC, in
     that precedence) and builds a ``WorkspaceClient`` exposing ``.sheets``,
-    ``.docs``, and ``.slides``.
+    ``.docs``, and ``.slides``. If ``project_name`` is given, also builds a
+    ``CloudClient`` exposing ``.bigquery`` and ``.secret_manager``.
 
     Args:
         scopes: Google OAuth scopes to request, as raw scope strings or
@@ -30,6 +32,8 @@ class GoogleClient:
             start a new OAuth flow when no valid cached token is found.
         service_account_path: Path to a service account key file. When
             given, it takes precedence over OAuth/ADC.
+        project_name: The GCP project to use for Cloud services (BigQuery,
+            Secret Manager). If omitted, ``.cloud`` is left as ``None``.
 
     Raises:
         ValueError: If ``scopes`` is empty.
@@ -41,13 +45,16 @@ class GoogleClient:
         scopes: The normalized list of scope strings actually requested.
         credentials: The resolved Google credentials object.
         workspace: A ``WorkspaceClient`` wired up with ``credentials``.
+        cloud: A ``CloudClient`` wired up with ``credentials`` and
+            ``project_name``, or ``None`` if ``project_name`` was not given.
     """
     def __init__(
         self,
         scopes: list[str | Enum],
         token_path: str | Path | None = None,
         oauth_client_path: str | Path | None = None,
-        service_account_path: str | Path | None = None
+        service_account_path: str | Path | None = None,
+        project_name: str | None = None
     ):  
         if not scopes:
             raise ValueError(
@@ -74,6 +81,15 @@ class GoogleClient:
         
         self.workspace = WorkspaceClient(
             credentials=self.credentials
+        )
+
+        self.cloud = (
+            CloudClient(
+                credentials=self.credentials,
+                project_name=project_name
+            )
+            if project_name
+            else None
         )
         
     @staticmethod
