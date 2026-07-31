@@ -1,6 +1,6 @@
 [project]
 name = "conduit-py"
-version = "0.1.0"
+version = "0.1.1"
 description = "Unified, opinionated Python client for authenticating and working with Google APIs (Workspace, Cloud, and beyond)."
 readme = "README.md"
 license = "MIT"
