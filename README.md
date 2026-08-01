@@ -15,6 +15,7 @@ Currently supported:
   - Gmail: `send_message`, `list_messages`, `get_message`, `trash_message`.
   - Calendar: `create_event`, `list_events`, `get_event`, `delete_event`.
   - Forms: `create_form`, `get_form`, `add_text_question`, `list_responses`.
+  - Tasks: `create_task`, `list_tasks`, `complete_task`, `delete_task`.
 - **Google Cloud**: Requires `project_name` (see [Google Cloud](#google-cloud) below).
   - BigQuery: `query`, `query_and_wait`, `get_table`, `list_datasets`, `list_tables`,
     `create_dataset`, `insert_rows_json`.
@@ -27,6 +28,9 @@ Currently supported:
   - Firestore: `create_document`, `get_document`, `update_document`, `delete_document`,
     `list_documents`.
   - Cloud Logging: `write_log`, `list_entries`.
+  - IAM: `create_service_account`, `list_service_accounts`, `delete_service_account`,
+    `create_service_account_key` (service account/key lifecycle — not resource-level access
+    grants; see [Google Cloud](#google-cloud) below).
 
 ## Install
 
@@ -106,11 +110,16 @@ google.workspace.forms.add_text_question(form["formId"], "What's your name?")
 responses = google.workspace.forms.list_responses(form["formId"])
 ```
 
+```python
+task = google.workspace.tasks.create_task("@default", "Buy milk")
+google.workspace.tasks.complete_task("@default", task["id"])
+```
+
 ### Google Cloud
 
 Pass `project_name` to `Conduit.google(...)` to also get a `.cloud` client exposing `.bigquery`,
-`.secret_manager`, `.storage`, `.pubsub`, `.firestore`, and `.logging`. If `project_name` is
-omitted, `.cloud` is `None`.
+`.secret_manager`, `.storage`, `.pubsub`, `.firestore`, `.logging`, and `.iam`. If `project_name`
+is omitted, `.cloud` is `None`.
 
 ```python
 from conduit_py import Conduit
@@ -124,6 +133,7 @@ google = Conduit.google(
         GoogleScopes.PUBSUB.PUBSUB,
         GoogleScopes.FIRESTORE.DATASTORE,
         GoogleScopes.CLOUD_LOGGING.WRITE,
+        GoogleScopes.IAM.CLOUD_PLATFORM,
     ],
     oauth_client_path="path/to/client_secret.json",
     token_path="path/to/token.json",
@@ -180,13 +190,24 @@ for doc in google.cloud.firestore.list_documents("users"):
 google.cloud.logging.write_log("my-log", "Job finished successfully", severity="INFO")
 for entry in google.cloud.logging.list_entries(log_name="my-log", max_results=10):
     print(entry.payload)
+
+# IAM
+sa = google.cloud.iam.create_service_account("my-app-sa", "My App Service Account")
+key = google.cloud.iam.create_service_account_key(sa.email)
+google.cloud.iam.delete_service_account(sa.email)
 ```
 
 `GoogleScopes.BIGQUERY` has `READ`, `WRITE`, and `INSERT_DATA` variants for narrower access.
 `GoogleScopes.CLOUD_STORAGE` and `GoogleScopes.CLOUD_LOGGING` each have `READ`/`WRITE`.
-`GoogleScopes.SECRET_MANAGER`, `GoogleScopes.PUBSUB`, and `GoogleScopes.FIRESTORE` each only have
-one variant (`CLOUD_PLATFORM`, `PUBSUB`, and `DATASTORE` respectively) — all three are gRPC-based
-Cloud APIs gated by IAM permissions rather than granular OAuth scopes.
+`GoogleScopes.SECRET_MANAGER`, `GoogleScopes.PUBSUB`, `GoogleScopes.FIRESTORE`, and
+`GoogleScopes.IAM` each only have one variant (`CLOUD_PLATFORM`, `PUBSUB`, `DATASTORE`, and
+`CLOUD_PLATFORM` respectively) — all four are gRPC-based Cloud APIs gated by IAM permissions
+rather than granular OAuth scopes.
+
+`IAMService` manages service account and key *lifecycle* (create/list/delete a service account,
+create a key for one) — it does not grant that service account access to other resources (e.g.
+a Secret Manager secret or Storage bucket). Resource-level access grants live on each resource's
+own IAM policy and aren't covered by this package yet.
 
 `BigQueryService.query` starts a query job and returns immediately without waiting for it to
 finish (call `.result()` on the returned job yourself); `query_and_wait` blocks until the query

@@ -54,6 +54,11 @@ class FormsScopes(str, Enum):
     WRITE = "https://www.googleapis.com/auth/forms.body"
     RESPONSES_READ = "https://www.googleapis.com/auth/forms.responses.readonly"
 
+class TasksScopes(str, Enum):
+    """OAuth scopes for the Google Tasks API."""
+    READ = "https://www.googleapis.com/auth/tasks.readonly"
+    WRITE = "https://www.googleapis.com/auth/tasks"
+
 class BigQueryScopes(str, Enum):
     """OAuth scopes for the Google BigQuery API."""
     READ = "https://www.googleapis.com/auth/bigquery.readonly"
@@ -87,6 +92,15 @@ class CloudLoggingScopes(str, Enum):
     READ = "https://www.googleapis.com/auth/logging.read"
     WRITE = "https://www.googleapis.com/auth/logging.write"
 
+class IAMScopes(str, Enum):
+    """OAuth scopes for the Google Cloud IAM API.
+
+    The IAM Admin API only supports the broad ``cloud-platform`` scope
+    (no dedicated ``iam.*`` scope), so that's the only one available
+    here.
+    """
+    CLOUD_PLATFORM = "https://www.googleapis.com/auth/cloud-platform"
+
 class GoogleScopes:
     """Namespace grouping the per-service scope enums.
 
@@ -100,9 +114,11 @@ class GoogleScopes:
     GMAIL = GmailScopes
     CALENDAR = CalendarScopes
     FORMS = FormsScopes
+    TASKS = TasksScopes
     BIGQUERY = BigQueryScopes
     SECRET_MANAGER = SecretManagerScopes
     CLOUD_STORAGE = CloudStorageScopes
     PUBSUB = PubSubScopes
     FIRESTORE = FirestoreScopes
     CLOUD_LOGGING = CloudLoggingScopes
+    IAM = IAMScopes

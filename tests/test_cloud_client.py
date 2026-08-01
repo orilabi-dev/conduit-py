@@ -10,6 +10,7 @@ _SERVICE_CLASS_NAMES = [
     "PubSubService",
     "FirestoreService",
     "CloudLoggingService",
+    "IAMService",
 ]
 
 
@@ -98,3 +99,16 @@ def test_init_builds_logging_service_with_credentials_and_project():
         credentials=credentials, project_name="test-project"
     )
     assert client.logging is mocks["CloudLoggingService"].return_value
+
+
+def test_init_builds_iam_service_with_credentials_and_project():
+    credentials = MagicMock()
+
+    stack, mocks = _patch_all_services()
+    with stack:
+        client = CloudClient(credentials=credentials, project_name="test-project")
+
+    mocks["IAMService"].assert_called_once_with(
+        credentials=credentials, project_name="test-project"
+    )
+    assert client.iam is mocks["IAMService"].return_value
