@@ -27,6 +27,17 @@ class DriveScopes(str, Enum):
     READ = "https://www.googleapis.com/auth/drive.readonly"
     WRITE = "https://www.googleapis.com/auth/drive"
 
+class GmailScopes(str, Enum):
+    """OAuth scopes for the Gmail API.
+
+    Gmail's granular scopes don't map cleanly to a plain READ/WRITE split:
+    reading mail, sending mail, and modifying mail (e.g. trashing a
+    message) are each gated by a distinct scope.
+    """
+    READ = "https://www.googleapis.com/auth/gmail.readonly"
+    SEND = "https://www.googleapis.com/auth/gmail.send"
+    MODIFY = "https://www.googleapis.com/auth/gmail.modify"
+
 class BigQueryScopes(str, Enum):
     """OAuth scopes for the Google BigQuery API."""
     READ = "https://www.googleapis.com/auth/bigquery.readonly"
@@ -47,6 +58,10 @@ class CloudStorageScopes(str, Enum):
     READ = "https://www.googleapis.com/auth/devstorage.read_only"
     WRITE = "https://www.googleapis.com/auth/devstorage.read_write"
 
+class PubSubScopes(str, Enum):
+    """OAuth scopes for the Google Cloud Pub/Sub API."""
+    PUBSUB = "https://www.googleapis.com/auth/pubsub"
+
 class GoogleScopes:
     """Namespace grouping the per-service scope enums.
 
@@ -57,6 +72,8 @@ class GoogleScopes:
     DOCS = DocScopes
     SLIDES = SlideScopes
     DRIVE = DriveScopes
+    GMAIL = GmailScopes
     BIGQUERY = BigQueryScopes
     SECRET_MANAGER = SecretManagerScopes
     CLOUD_STORAGE = CloudStorageScopes
+    PUBSUB = PubSubScopes

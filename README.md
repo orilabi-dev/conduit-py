@@ -12,6 +12,7 @@ Currently supported:
   - Docs: `create_doc`, `get_document`, `append_text`.
   - Slides: `create_slide`, `get_presentation`, `add_slide`.
   - Drive: `upload_file`, `download_file`, `list_files`, `delete_file`, `share_file`.
+  - Gmail: `send_message`, `list_messages`, `get_message`, `trash_message`.
 - **Google Cloud**: Requires `project_name` (see [Google Cloud](#google-cloud) below).
   - BigQuery: `query`, `query_and_wait`, `get_table`, `list_datasets`, `list_tables`,
     `create_dataset`, `insert_rows_json`.
@@ -19,6 +20,8 @@ Currently supported:
     `list_secrets`, `list_secret_versions`, `delete_secret`, `secret_exists`.
   - Cloud Storage: `create_bucket`, `list_buckets`, `upload_blob`, `download_blob`,
     `list_blobs`, `delete_blob`.
+  - Pub/Sub: `create_topic`, `list_topics`, `publish_message`, `create_subscription`,
+    `pull_messages`, `acknowledge_messages`.
 
 ## Install
 
@@ -67,10 +70,21 @@ content = google.workspace.drive.download_file(file["id"])
 google.workspace.drive.share_file(file["id"], "teammate@example.com", role="writer")
 ```
 
+Gmail sends/reads mail as the authenticated user (`GoogleScopes.GMAIL` has `READ`, `SEND`, and
+`MODIFY` variants, since Gmail gates reading, sending, and modifying mail with separate scopes):
+
+```python
+google.workspace.gmail.send_message("teammate@example.com", "Report ready", "See attached.")
+unread = google.workspace.gmail.list_messages(query="is:unread")
+for stub in unread:
+    message = google.workspace.gmail.get_message(stub["id"])
+    print(message["snippet"])
+```
+
 ### Google Cloud
 
 Pass `project_name` to `Conduit.google(...)` to also get a `.cloud` client exposing `.bigquery`,
-`.secret_manager`, and `.storage`. If `project_name` is omitted, `.cloud` is `None`.
+`.secret_manager`, `.storage`, and `.pubsub`. If `project_name` is omitted, `.cloud` is `None`.
 
 ```python
 from conduit_py import Conduit
@@ -81,6 +95,7 @@ google = Conduit.google(
         GoogleScopes.BIGQUERY.WRITE,
         GoogleScopes.SECRET_MANAGER.CLOUD_PLATFORM,
         GoogleScopes.CLOUD_STORAGE.WRITE,
+        GoogleScopes.PUBSUB.PUBSUB,
     ],
     oauth_client_path="path/to/client_secret.json",
     token_path="path/to/token.json",
@@ -113,12 +128,24 @@ google.cloud.storage.upload_blob("my-bucket", "report.txt", "Hello, world!")
 content = google.cloud.storage.download_blob("my-bucket", "report.txt")
 for blob in google.cloud.storage.list_blobs("my-bucket"):
     print(blob.name)
+
+# Pub/Sub
+google.cloud.pubsub.create_topic("my-topic")
+google.cloud.pubsub.create_subscription("my-topic", "my-subscription")
+google.cloud.pubsub.publish_message("my-topic", "hello world")
+
+response = google.cloud.pubsub.pull_messages("my-subscription", max_messages=5)
+ack_ids = [msg.ack_id for msg in response.received_messages]
+for msg in response.received_messages:
+    print(msg.message.data)
+if ack_ids:
+    google.cloud.pubsub.acknowledge_messages("my-subscription", ack_ids)
 ```
 
 `GoogleScopes.BIGQUERY` has `READ`, `WRITE`, and `INSERT_DATA` variants for narrower access.
-`GoogleScopes.CLOUD_STORAGE` has `READ`/`WRITE`. `GoogleScopes.SECRET_MANAGER` only has
-`CLOUD_PLATFORM` — Secret Manager is a gRPC-based Cloud API gated by IAM permissions rather than
-granular OAuth scopes, so the broad `cloud-platform` scope is the only one available.
+`GoogleScopes.CLOUD_STORAGE` has `READ`/`WRITE`. `GoogleScopes.SECRET_MANAGER` and
+`GoogleScopes.PUBSUB` each only have one variant (`CLOUD_PLATFORM` and `PUBSUB` respectively) —
+both are gRPC-based Cloud APIs gated by IAM permissions rather than granular OAuth scopes.
 
 `BigQueryService.query` starts a query job and returns immediately without waiting for it to
 finish (call `.result()` on the returned job yourself); `query_and_wait` blocks until the query
@@ -126,6 +153,10 @@ completes and returns the result rows directly. `insert_rows_json` streams rows 
 without a load job; unlike other BigQuery methods it doesn't raise on a per-row failure by
 default, so this wrapper checks the returned error list itself and raises `GoogleAPIError` if any
 row was rejected.
+
+`PubSubService.pull_messages` does not acknowledge the messages it pulls — call
+`acknowledge_messages` with each message's `ack_id` once you've finished processing it, or it will
+be redelivered after the subscription's ack deadline elapses.
 
 ### Authentication
 
