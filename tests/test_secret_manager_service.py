@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from google.api_core.exceptions import NotFound
+from google.api_core.exceptions import NotFound, PermissionDenied
 
 from conduit_py.google.cloud.secret_manager.service import SecretManagerService
 from conduit_py.google.exceptions import GoogleAPIError
@@ -152,3 +152,124 @@ def test_access_secret_version_wraps_api_call_error():
 
     assert exc_info.value.status_code == 404
     assert "version not found" in exc_info.value.reason
+
+
+def test_list_secrets_calls_client_with_expected_request():
+    service, mock_client = _make_service()
+    mock_client.list_secrets.return_value = ["secret1", "secret2"]
+
+    result = service.list_secrets()
+
+    mock_client.list_secrets.assert_called_once_with(
+        request={"parent": "projects/test-project"}
+    )
+    assert result == ["secret1", "secret2"]
+
+
+def test_list_secrets_wraps_api_call_error():
+    service, mock_client = _make_service()
+    mock_client.list_secrets.side_effect = NotFound("project not found")
+
+    with pytest.raises(GoogleAPIError) as exc_info:
+        service.list_secrets()
+
+    assert exc_info.value.status_code == 404
+    assert "project not found" in exc_info.value.reason
+
+
+def test_list_secret_versions_rejects_empty_secret_id():
+    service, _ = _make_service()
+
+    with pytest.raises(ValueError):
+        service.list_secret_versions("")
+
+
+def test_list_secret_versions_calls_client_with_expected_request():
+    service, mock_client = _make_service()
+    mock_client.list_secret_versions.return_value = ["version1", "version2"]
+
+    result = service.list_secret_versions("my-secret")
+
+    mock_client.list_secret_versions.assert_called_once_with(
+        request={"parent": "projects/test-project/secrets/my-secret"}
+    )
+    assert result == ["version1", "version2"]
+
+
+def test_list_secret_versions_wraps_api_call_error():
+    service, mock_client = _make_service()
+    mock_client.list_secret_versions.side_effect = NotFound("secret not found")
+
+    with pytest.raises(GoogleAPIError) as exc_info:
+        service.list_secret_versions("my-secret")
+
+    assert exc_info.value.status_code == 404
+    assert "secret not found" in exc_info.value.reason
+
+
+def test_delete_secret_rejects_empty_secret_id():
+    service, _ = _make_service()
+
+    with pytest.raises(ValueError):
+        service.delete_secret("")
+
+
+def test_delete_secret_calls_client_with_expected_request():
+    service, mock_client = _make_service()
+
+    result = service.delete_secret("my-secret")
+
+    mock_client.delete_secret.assert_called_once_with(
+        request={"name": "projects/test-project/secrets/my-secret"}
+    )
+    assert result is None
+
+
+def test_delete_secret_wraps_api_call_error():
+    service, mock_client = _make_service()
+    mock_client.delete_secret.side_effect = NotFound("secret not found")
+
+    with pytest.raises(GoogleAPIError) as exc_info:
+        service.delete_secret("my-secret")
+
+    assert exc_info.value.status_code == 404
+    assert "secret not found" in exc_info.value.reason
+
+
+def test_secret_exists_rejects_empty_secret_id():
+    service, _ = _make_service()
+
+    with pytest.raises(ValueError):
+        service.secret_exists("")
+
+
+def test_secret_exists_returns_true_when_secret_found():
+    service, mock_client = _make_service()
+    mock_client.get_secret.return_value = MagicMock()
+
+    result = service.secret_exists("my-secret")
+
+    mock_client.get_secret.assert_called_once_with(
+        request={"name": "projects/test-project/secrets/my-secret"}
+    )
+    assert result is True
+
+
+def test_secret_exists_returns_false_on_not_found():
+    service, mock_client = _make_service()
+    mock_client.get_secret.side_effect = NotFound("secret not found")
+
+    result = service.secret_exists("my-secret")
+
+    assert result is False
+
+
+def test_secret_exists_wraps_other_api_call_errors():
+    service, mock_client = _make_service()
+    mock_client.get_secret.side_effect = PermissionDenied("access denied")
+
+    with pytest.raises(GoogleAPIError) as exc_info:
+        service.secret_exists("my-secret")
+
+    assert exc_info.value.status_code == 403
+    assert "access denied" in exc_info.value.reason

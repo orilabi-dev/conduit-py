@@ -78,3 +78,178 @@ def test_query_wraps_api_call_error_with_code_and_reason():
 
     assert exc_info.value.status_code == 404
     assert "bad query" in exc_info.value.reason
+
+
+def test_get_table_rejects_empty_dataset_id():
+    service, _ = _make_service()
+
+    with pytest.raises(ValueError):
+        service.get_table("", "my_table")
+
+
+def test_get_table_rejects_empty_table_id():
+    service, _ = _make_service()
+
+    with pytest.raises(ValueError):
+        service.get_table("my_dataset", "")
+
+
+def test_get_table_calls_client_with_fully_qualified_table_ref():
+    service, mock_client = _make_service()
+    mock_client.project = "test-project"
+    fake_table = MagicMock(name="Table")
+    mock_client.get_table.return_value = fake_table
+
+    result = service.get_table("my_dataset", "my_table")
+
+    mock_client.get_table.assert_called_once_with("test-project.my_dataset.my_table")
+    assert result is fake_table
+
+
+def test_get_table_wraps_api_call_error_with_code_and_reason():
+    service, mock_client = _make_service()
+    mock_client.project = "test-project"
+    mock_client.get_table.side_effect = NotFound("table not found")
+
+    with pytest.raises(GoogleAPIError) as exc_info:
+        service.get_table("my_dataset", "my_table")
+
+    assert exc_info.value.status_code == 404
+    assert "table not found" in exc_info.value.reason
+
+
+def test_list_datasets_returns_iterator_from_client():
+    service, mock_client = _make_service()
+    mock_client.list_datasets.return_value = ["dataset1", "dataset2"]
+
+    result = service.list_datasets()
+
+    mock_client.list_datasets.assert_called_once_with()
+    assert result == ["dataset1", "dataset2"]
+
+
+def test_list_datasets_wraps_api_call_error_with_code_and_reason():
+    service, mock_client = _make_service()
+    mock_client.list_datasets.side_effect = NotFound("project not found")
+
+    with pytest.raises(GoogleAPIError) as exc_info:
+        service.list_datasets()
+
+    assert exc_info.value.status_code == 404
+    assert "project not found" in exc_info.value.reason
+
+
+def test_list_tables_rejects_empty_dataset_id():
+    service, _ = _make_service()
+
+    with pytest.raises(ValueError):
+        service.list_tables("")
+
+
+def test_list_tables_calls_client_with_dataset_id():
+    service, mock_client = _make_service()
+    mock_client.list_tables.return_value = ["table1", "table2"]
+
+    result = service.list_tables("my_dataset")
+
+    mock_client.list_tables.assert_called_once_with("my_dataset")
+    assert result == ["table1", "table2"]
+
+
+def test_list_tables_wraps_api_call_error_with_code_and_reason():
+    service, mock_client = _make_service()
+    mock_client.list_tables.side_effect = NotFound("dataset not found")
+
+    with pytest.raises(GoogleAPIError) as exc_info:
+        service.list_tables("my_dataset")
+
+    assert exc_info.value.status_code == 404
+    assert "dataset not found" in exc_info.value.reason
+
+
+def test_create_dataset_rejects_empty_dataset_id():
+    service, _ = _make_service()
+
+    with pytest.raises(ValueError):
+        service.create_dataset("")
+
+
+def test_create_dataset_calls_client_with_dataset_id():
+    service, mock_client = _make_service()
+    fake_dataset = MagicMock(name="Dataset")
+    mock_client.create_dataset.return_value = fake_dataset
+
+    result = service.create_dataset("my_dataset")
+
+    mock_client.create_dataset.assert_called_once_with("my_dataset")
+    assert result is fake_dataset
+
+
+def test_create_dataset_wraps_api_call_error_with_code_and_reason():
+    service, mock_client = _make_service()
+    mock_client.create_dataset.side_effect = NotFound("project not found")
+
+    with pytest.raises(GoogleAPIError) as exc_info:
+        service.create_dataset("my_dataset")
+
+    assert exc_info.value.status_code == 404
+    assert "project not found" in exc_info.value.reason
+
+
+def test_insert_rows_json_rejects_empty_dataset_id():
+    service, _ = _make_service()
+
+    with pytest.raises(ValueError):
+        service.insert_rows_json("", "my_table", [{"col": "val"}])
+
+
+def test_insert_rows_json_rejects_empty_table_id():
+    service, _ = _make_service()
+
+    with pytest.raises(ValueError):
+        service.insert_rows_json("my_dataset", "", [{"col": "val"}])
+
+
+def test_insert_rows_json_rejects_empty_rows():
+    service, _ = _make_service()
+
+    with pytest.raises(ValueError):
+        service.insert_rows_json("my_dataset", "my_table", [])
+
+
+def test_insert_rows_json_calls_client_with_fully_qualified_table_and_rows():
+    service, mock_client = _make_service()
+    mock_client.project = "test-project"
+    mock_client.insert_rows_json.return_value = []
+
+    service.insert_rows_json("my_dataset", "my_table", [{"col": "val"}])
+
+    mock_client.insert_rows_json.assert_called_once_with(
+        table="test-project.my_dataset.my_table",
+        json_rows=[{"col": "val"}],
+    )
+
+
+def test_insert_rows_json_wraps_api_call_error_with_code_and_reason():
+    service, mock_client = _make_service()
+    mock_client.project = "test-project"
+    mock_client.insert_rows_json.side_effect = NotFound("table not found")
+
+    with pytest.raises(GoogleAPIError) as exc_info:
+        service.insert_rows_json("my_dataset", "my_table", [{"col": "val"}])
+
+    assert exc_info.value.status_code == 404
+    assert "table not found" in exc_info.value.reason
+
+
+def test_insert_rows_json_raises_on_partial_row_failures():
+    service, mock_client = _make_service()
+    mock_client.project = "test-project"
+    row_errors = [{"index": 0, "errors": [{"reason": "invalid"}]}]
+    mock_client.insert_rows_json.return_value = row_errors
+
+    with pytest.raises(GoogleAPIError) as exc_info:
+        service.insert_rows_json("my_dataset", "my_table", [{"col": "val"}])
+
+    assert exc_info.value.status_code is None
+    assert str(row_errors) in exc_info.value.reason

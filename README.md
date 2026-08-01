@@ -6,11 +6,17 @@ Currently supported:
 
 - **Auth**: Application Default Credentials (ADC), OAuth client (installed-app flow with token
   caching), and service account credentials.
-- **Google Workspace**: Sheets (`create_sheet`). Docs and Drive scopes are defined but the
-  corresponding services are not yet implemented.
-- **Google Cloud**: BigQuery (`query_and_wait`, `query`) and Secret Manager (`create_secret`,
-  `add_secret_version`, `access_secret_version`). Requires `project_name` (see
-  [Google Cloud](#google-cloud) below).
+- **Google Workspace**:
+  - Sheets: `create_sheet`, `get_sheet`, `get_values`, `update_values`, `append_values`,
+    `clear_values`.
+  - Docs: `create_doc`, `get_document`, `append_text`.
+  - Slides: `create_slide`, `get_presentation`, `add_slide`.
+  - Drive is not yet implemented.
+- **Google Cloud**: Requires `project_name` (see [Google Cloud](#google-cloud) below).
+  - BigQuery: `query`, `query_and_wait`, `get_table`, `list_datasets`, `list_tables`,
+    `create_dataset`, `insert_rows_json`.
+  - Secret Manager: `create_secret`, `add_secret_version`, `access_secret_version`,
+    `list_secrets`, `list_secret_versions`, `delete_secret`, `secret_exists`.
 
 ## Install
 
@@ -31,7 +37,24 @@ google = Conduit.google(
 )
 
 sheet = google.workspace.sheets.create_sheet("My Sheet")
-print(sheet["spreadsheetId"])
+spreadsheet_id = sheet["spreadsheetId"]
+
+google.workspace.sheets.update_values(spreadsheet_id, "Sheet1!A1", [["Hello", "World"]])
+rows = google.workspace.sheets.get_values(spreadsheet_id, "Sheet1!A1:B1")
+print(rows)  # [["Hello", "World"]]
+```
+
+`update_values`/`append_values` default to `value_input_option="USER_ENTERED"`, so values are
+parsed as if typed by a user (e.g. `"=SUM(A1:A2)"` becomes a real formula, not a literal string).
+
+Docs and Slides follow the same create-then-operate shape:
+
+```python
+doc = google.workspace.docs.create_doc("My Doc")
+google.workspace.docs.append_text(doc["documentId"], "Hello, world!")
+
+deck = google.workspace.slides.create_slide("My Deck")
+google.workspace.slides.add_slide(deck["presentationId"])
 ```
 
 ### Google Cloud
@@ -41,9 +64,10 @@ Pass `project_name` to `Conduit.google(...)` to also get a `.cloud` client expos
 
 ```python
 from conduit_py import Conduit
+from conduit_py.google import GoogleScopes
 
 google = Conduit.google(
-    scopes=["https://www.googleapis.com/auth/cloud-platform"],
+    scopes=[GoogleScopes.BIGQUERY.WRITE, GoogleScopes.SECRET_MANAGER.CLOUD_PLATFORM],
     oauth_client_path="path/to/client_secret.json",
     token_path="path/to/token.json",
     project_name="my-gcp-project",
@@ -54,20 +78,33 @@ rows = google.cloud.bigquery.query_and_wait("SELECT 1 AS value")
 for row in rows:
     print(row.value)
 
+google.cloud.bigquery.create_dataset("my_dataset")
+google.cloud.bigquery.insert_rows_json("my_dataset", "my_table", [{"col": "val"}])
+table = google.cloud.bigquery.get_table("my_dataset", "my_table")
+for dataset in google.cloud.bigquery.list_datasets():
+    print(dataset.dataset_id)
+
 # Secret Manager
 google.cloud.secret_manager.create_secret("my-secret")
 google.cloud.secret_manager.add_secret_version("my-secret", payload="hunter2")
 value = google.cloud.secret_manager.access_secret_version("my-secret")
 print(value.decode())
+
+if google.cloud.secret_manager.secret_exists("my-secret"):
+    google.cloud.secret_manager.delete_secret("my-secret")
 ```
 
-Cloud services aren't covered by the `GoogleScopes` enum yet — pass the raw scope string(s) your
-project needs (e.g. the broad `cloud-platform` scope above, or narrower BigQuery/Secret Manager
-scopes if you want to limit access).
+`GoogleScopes.BIGQUERY` has `READ`, `WRITE`, and `INSERT_DATA` variants for narrower access.
+`GoogleScopes.SECRET_MANAGER` only has `CLOUD_PLATFORM` — Secret Manager is a gRPC-based Cloud API
+gated by IAM permissions rather than granular OAuth scopes, so the broad `cloud-platform` scope is
+the only one available.
 
 `BigQueryService.query` starts a query job and returns immediately without waiting for it to
 finish (call `.result()` on the returned job yourself); `query_and_wait` blocks until the query
-completes and returns the result rows directly.
+completes and returns the result rows directly. `insert_rows_json` streams rows into a table
+without a load job; unlike other BigQuery methods it doesn't raise on a per-row failure by
+default, so this wrapper checks the returned error list itself and raises `GoogleAPIError` if any
+row was rejected.
 
 ### Authentication
 

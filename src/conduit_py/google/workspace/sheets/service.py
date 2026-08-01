@@ -115,3 +115,235 @@ class SheetsService:
                 status_code=error.status_code,
                 reason=error.reason
             ) from error
+
+    def get_values(
+        self,
+        spreadsheet_id: str,
+        range_name: str
+    ) -> list:
+        """Fetch cell values from a range in a spreadsheet.
+
+        Calls ``spreadsheets().values().get``, which returns a response
+        containing only spreadsheet-range metadata plus a ``"values"`` key
+        with the row data. The API omits the ``"values"`` key entirely when
+        the range has no data, so this returns ``[]`` in that case instead
+        of raising or returning a missing key.
+
+        Args:
+            spreadsheet_id: ID of the spreadsheet to read from. Must not
+                be empty.
+            range_name: A1 notation range to read (e.g. ``"Sheet1!A1:C10"``).
+                Must not be empty.
+
+        Returns:
+            A list of rows, each a list of cell values. Empty list if the
+            range contains no data.
+
+        Raises:
+            ValueError: If ``spreadsheet_id`` or ``range_name`` is empty.
+            GoogleAPIError: If the Sheets API request fails; carries the
+                original ``status_code`` and ``reason`` from the failed
+                request.
+        """
+        if not spreadsheet_id:
+            raise ValueError("Spreadsheet ID cannot be empty")
+        if not range_name:
+            raise ValueError("Range name cannot be empty")
+
+        try:
+            response = (
+                self.service
+                .spreadsheets()
+                .values()
+                .get(
+                    spreadsheetId=spreadsheet_id,
+                    range=range_name
+                )
+                .execute()
+            )
+
+            return response.get("values", [])
+        except HttpError as error:
+            raise GoogleAPIError(
+                f"Failed to get values: {error.reason}",
+                status_code=error.status_code,
+                reason=error.reason
+            ) from error
+
+    def update_values(
+        self,
+        spreadsheet_id: str,
+        range_name: str,
+        values: list[list],
+        value_input_option: str = "USER_ENTERED"
+    ) -> dict:
+        """Overwrite cell values in a range of a spreadsheet.
+
+        Calls ``spreadsheets().values().update``. With the default
+        ``value_input_option`` of ``"USER_ENTERED"``, values are parsed as
+        if typed by a user in the Sheets UI (e.g. ``"=SUM(A1:A2)"`` becomes
+        a real formula rather than a literal string).
+
+        Args:
+            spreadsheet_id: ID of the spreadsheet to update. Must not be
+                empty.
+            range_name: A1 notation range to write (e.g. ``"Sheet1!A1"``).
+                Must not be empty.
+            values: Rows of cell values to write. Must not be empty.
+            value_input_option: How input data should be interpreted.
+                Defaults to ``"USER_ENTERED"``.
+
+        Returns:
+            A dict representing the Sheets API ``UpdateValuesResponse``
+            (spreadsheet ID, updated range, and counts of updated rows/
+            columns/cells).
+
+        Raises:
+            ValueError: If ``spreadsheet_id`` or ``range_name`` is empty,
+                or if ``values`` is empty.
+            GoogleAPIError: If the Sheets API request fails; carries the
+                original ``status_code`` and ``reason`` from the failed
+                request.
+        """
+        if not spreadsheet_id:
+            raise ValueError("Spreadsheet ID cannot be empty")
+        if not range_name:
+            raise ValueError("Range name cannot be empty")
+        if not values:
+            raise ValueError("Values cannot be empty")
+
+        try:
+            response = (
+                self.service
+                .spreadsheets()
+                .values()
+                .update(
+                    spreadsheetId=spreadsheet_id,
+                    range=range_name,
+                    valueInputOption=value_input_option,
+                    body={"values": values}
+                )
+                .execute()
+            )
+
+            return response
+        except HttpError as error:
+            raise GoogleAPIError(
+                f"Failed to update values: {error.reason}",
+                status_code=error.status_code,
+                reason=error.reason
+            ) from error
+
+    def append_values(
+        self,
+        spreadsheet_id: str,
+        range_name: str,
+        values: list[list],
+        value_input_option: str = "USER_ENTERED"
+    ) -> dict:
+        """Append rows of values after the last row of data in a range.
+
+        Calls ``spreadsheets().values().append``. With the default
+        ``value_input_option`` of ``"USER_ENTERED"``, values are parsed as
+        if typed by a user in the Sheets UI (e.g. ``"=SUM(A1:A2)"`` becomes
+        a real formula rather than a literal string).
+
+        Args:
+            spreadsheet_id: ID of the spreadsheet to append to. Must not
+                be empty.
+            range_name: A1 notation range identifying the table to append
+                after (e.g. ``"Sheet1!A1"``). Must not be empty.
+            values: Rows of cell values to append. Must not be empty.
+            value_input_option: How input data should be interpreted.
+                Defaults to ``"USER_ENTERED"``.
+
+        Returns:
+            A dict representing the Sheets API ``AppendValuesResponse``
+            (spreadsheet ID, the table range that was found, and an
+            ``updates`` object describing the newly written range).
+
+        Raises:
+            ValueError: If ``spreadsheet_id`` or ``range_name`` is empty,
+                or if ``values`` is empty.
+            GoogleAPIError: If the Sheets API request fails; carries the
+                original ``status_code`` and ``reason`` from the failed
+                request.
+        """
+        if not spreadsheet_id:
+            raise ValueError("Spreadsheet ID cannot be empty")
+        if not range_name:
+            raise ValueError("Range name cannot be empty")
+        if not values:
+            raise ValueError("Values cannot be empty")
+
+        try:
+            response = (
+                self.service
+                .spreadsheets()
+                .values()
+                .append(
+                    spreadsheetId=spreadsheet_id,
+                    range=range_name,
+                    valueInputOption=value_input_option,
+                    body={"values": values}
+                )
+                .execute()
+            )
+
+            return response
+        except HttpError as error:
+            raise GoogleAPIError(
+                f"Failed to append values: {error.reason}",
+                status_code=error.status_code,
+                reason=error.reason
+            ) from error
+
+    def clear_values(
+        self,
+        spreadsheet_id: str,
+        range_name: str
+    ) -> dict:
+        """Clear cell values from a range, leaving formatting intact.
+
+        Calls ``spreadsheets().values().clear``.
+
+        Args:
+            spreadsheet_id: ID of the spreadsheet to clear values from.
+                Must not be empty.
+            range_name: A1 notation range to clear (e.g.
+                ``"Sheet1!A1:C10"``). Must not be empty.
+
+        Returns:
+            A dict representing the Sheets API ``ClearValuesResponse``
+            (spreadsheet ID and the range that was cleared).
+
+        Raises:
+            ValueError: If ``spreadsheet_id`` or ``range_name`` is empty.
+            GoogleAPIError: If the Sheets API request fails; carries the
+                original ``status_code`` and ``reason`` from the failed
+                request.
+        """
+        if not spreadsheet_id:
+            raise ValueError("Spreadsheet ID cannot be empty")
+        if not range_name:
+            raise ValueError("Range name cannot be empty")
+
+        try:
+            response = (
+                self.service
+                .spreadsheets()
+                .values()
+                .clear(
+                    spreadsheetId=spreadsheet_id,
+                    range=range_name
+                )
+                .execute()
+            )
+
+            return response
+        except HttpError as error:
+            raise GoogleAPIError(
+                f"Failed to clear values: {error.reason}",
+                status_code=error.status_code,
+                reason=error.reason
+            ) from error

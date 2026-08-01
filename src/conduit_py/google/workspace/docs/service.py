@@ -69,3 +69,104 @@ class DocsService:
                 status_code=error.status_code,
                 reason=error.reason
             )
+
+    def get_document(
+        self,
+        document_id: str
+    ) -> dict:
+        """Fetch a document's full content and structure.
+
+        Calls ``documents().get``, so the response contains the complete
+        Document resource: title, revision ID, and the full body content
+        (paragraphs, text runs, tables, etc.) — unlike ``create_doc``,
+        which only returns the new document's ID.
+
+        Args:
+            document_id: ID of the document to fetch. Must not be empty.
+
+        Returns:
+            A dict representing the full Google Docs ``Document`` resource.
+
+        Raises:
+            ValueError: If ``document_id`` is empty.
+            GoogleAPIError: If the Docs API request fails; carries the
+                original ``status_code`` and ``reason`` from the failed
+                request.
+        """
+        if not document_id:
+            raise ValueError("Document ID cannot be empty")
+
+        try:
+            response = (
+                self.service
+                .documents()
+                .get(documentId=document_id)
+                .execute()
+            )
+
+            return response
+        except HttpError as error:
+            raise GoogleAPIError(
+                f"Failed to get document: {error.reason}",
+                status_code=error.status_code,
+                reason=error.reason
+            ) from error
+
+    def append_text(
+        self,
+        document_id: str,
+        text: str
+    ) -> dict:
+        """Append text to the end of a document's body.
+
+        Calls ``documents().batchUpdate`` with a single ``insertText``
+        request targeting ``endOfSegmentLocation``, which inserts the text
+        immediately before the end of the document body.
+
+        Args:
+            document_id: ID of the document to update. Must not be empty.
+            text: Text to append. Must not be empty.
+
+        Returns:
+            A dict representing the Docs API ``BatchUpdateDocumentResponse``
+            (document ID and a list of replies, one per request — the
+            ``insertText`` request produces an empty reply).
+
+        Raises:
+            ValueError: If ``document_id`` or ``text`` is empty.
+            GoogleAPIError: If the Docs API request fails; carries the
+                original ``status_code`` and ``reason`` from the failed
+                request.
+        """
+        if not document_id:
+            raise ValueError("Document ID cannot be empty")
+        if not text:
+            raise ValueError("Text cannot be empty")
+
+        try:
+            response = (
+                self.service
+                .documents()
+                .batchUpdate(
+                    documentId=document_id,
+                    body={
+                        "requests": [
+                            {
+                                "insertText": {
+                                    "endOfSegmentLocation": {},
+                                    "text": text,
+                                }
+                            }
+                        ]
+                    },
+                )
+                .execute()
+            )
+
+            return response
+        except HttpError as error:
+            raise GoogleAPIError(
+                f"Failed to append text: {error.reason}",
+                status_code=error.status_code,
+                reason=error.reason
+            ) from error

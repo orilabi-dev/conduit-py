@@ -1,9 +1,13 @@
 """Google Secret Manager API service wrapper."""
 
-from google.api_core.exceptions import GoogleAPICallError
+from google.api_core.exceptions import GoogleAPICallError, NotFound
 from google.auth.credentials import Credentials
 from google.cloud import secretmanager
 from google.cloud.secretmanager import Secret, SecretVersion
+from google.cloud.secretmanager_v1.services.secret_manager_service.pagers import (
+    ListSecretsPager,
+    ListSecretVersionsPager,
+)
 
 from conduit_py.google.exceptions import GoogleAPIError
 
@@ -144,6 +148,116 @@ class SecretManagerService:
         except GoogleAPICallError as error:
             raise GoogleAPIError(
                 f"Failed to access secret version: {error.message}",
+                status_code=error.code,
+                reason=error.message,
+            ) from error
+
+    def list_secrets(self) -> ListSecretsPager:
+        """List the secrets in ``project_name``.
+
+        Returns:
+            An iterator over the project's ``Secret`` objects.
+
+        Raises:
+            GoogleAPIError: If the secrets cannot be listed.
+        """
+        try:
+            parent = f"projects/{self.project_name}"
+            return self.client.list_secrets(request={"parent": parent})
+        except GoogleAPICallError as error:
+            raise GoogleAPIError(
+                f"Failed to list secrets: {error.message}",
+                status_code=error.code,
+                reason=error.message,
+            ) from error
+
+    def list_secret_versions(
+        self,
+        secret_id: str
+    ) -> ListSecretVersionsPager:
+        """List the versions of a secret.
+
+        Args:
+            secret_id: The secret to list versions for.
+
+        Returns:
+            An iterator over the secret's ``SecretVersion`` objects.
+
+        Raises:
+            ValueError: If ``secret_id`` is empty.
+            GoogleAPIError: If the versions cannot be listed.
+        """
+        if not secret_id:
+            raise ValueError("Secret ID cannot be empty")
+
+        try:
+            parent = f"projects/{self.project_name}/secrets/{secret_id}"
+            return self.client.list_secret_versions(request={"parent": parent})
+        except GoogleAPICallError as error:
+            raise GoogleAPIError(
+                f"Failed to list secret versions: {error.message}",
+                status_code=error.code,
+                reason=error.message,
+            ) from error
+
+    def delete_secret(
+        self,
+        secret_id: str
+    ) -> None:
+        """Permanently delete a secret and all of its versions.
+
+        This is irreversible: once deleted, the secret and every version
+        of its payload are gone for good.
+
+        Args:
+            secret_id: The secret to delete.
+
+        Raises:
+            ValueError: If ``secret_id`` is empty.
+            GoogleAPIError: If the secret cannot be deleted.
+        """
+        if not secret_id:
+            raise ValueError("Secret ID cannot be empty")
+
+        try:
+            name = f"projects/{self.project_name}/secrets/{secret_id}"
+            self.client.delete_secret(request={"name": name})
+        except GoogleAPICallError as error:
+            raise GoogleAPIError(
+                f"Failed to delete secret: {error.message}",
+                status_code=error.code,
+                reason=error.message,
+            ) from error
+
+    def secret_exists(
+        self,
+        secret_id: str
+    ) -> bool:
+        """Check whether a secret exists.
+
+        Args:
+            secret_id: The secret to check for.
+
+        Returns:
+            ``True`` if the secret exists, ``False`` if it does not.
+
+        Raises:
+            ValueError: If ``secret_id`` is empty.
+            GoogleAPIError: If the check fails for a reason other than the
+                secret not existing (e.g. a permission error).
+        """
+        if not secret_id:
+            raise ValueError("Secret ID cannot be empty")
+
+        try:
+            name = f"projects/{self.project_name}/secrets/{secret_id}"
+            self.client.get_secret(request={"name": name})
+            return True
+        except NotFound:
+            return False
+        except GoogleAPICallError as error:
+            raise GoogleAPIError(
+                f"Failed to check whether secret exists: {error.message}",
                 status_code=error.code,
                 reason=error.message,
             ) from error
