@@ -13,6 +13,7 @@ Currently supported:
   - Slides: `create_slide`, `get_presentation`, `add_slide`.
   - Drive: `upload_file`, `download_file`, `list_files`, `delete_file`, `share_file`.
   - Gmail: `send_message`, `list_messages`, `get_message`, `trash_message`.
+  - Calendar: `create_event`, `list_events`, `get_event`, `delete_event`.
 - **Google Cloud**: Requires `project_name` (see [Google Cloud](#google-cloud) below).
   - BigQuery: `query`, `query_and_wait`, `get_table`, `list_datasets`, `list_tables`,
     `create_dataset`, `insert_rows_json`.
@@ -22,6 +23,8 @@ Currently supported:
     `list_blobs`, `delete_blob`.
   - Pub/Sub: `create_topic`, `list_topics`, `publish_message`, `create_subscription`,
     `pull_messages`, `acknowledge_messages`.
+  - Firestore: `create_document`, `get_document`, `update_document`, `delete_document`,
+    `list_documents`.
 
 ## Install
 
@@ -81,10 +84,22 @@ for stub in unread:
     print(message["snippet"])
 ```
 
+Calendar times are RFC3339 timestamps, and `GoogleScopes.CALENDAR` is scoped to events only (not
+calendar list management):
+
+```python
+event = google.workspace.calendar.create_event(
+    "primary", "Standup", "2026-01-15T09:00:00-05:00", "2026-01-15T09:15:00-05:00"
+)
+upcoming = google.workspace.calendar.list_events("primary", time_min="2026-01-01T00:00:00Z")
+google.workspace.calendar.delete_event("primary", event["id"])
+```
+
 ### Google Cloud
 
 Pass `project_name` to `Conduit.google(...)` to also get a `.cloud` client exposing `.bigquery`,
-`.secret_manager`, `.storage`, and `.pubsub`. If `project_name` is omitted, `.cloud` is `None`.
+`.secret_manager`, `.storage`, `.pubsub`, and `.firestore`. If `project_name` is omitted, `.cloud`
+is `None`.
 
 ```python
 from conduit_py import Conduit
@@ -96,6 +111,7 @@ google = Conduit.google(
         GoogleScopes.SECRET_MANAGER.CLOUD_PLATFORM,
         GoogleScopes.CLOUD_STORAGE.WRITE,
         GoogleScopes.PUBSUB.PUBSUB,
+        GoogleScopes.FIRESTORE.DATASTORE,
     ],
     oauth_client_path="path/to/client_secret.json",
     token_path="path/to/token.json",
@@ -140,12 +156,20 @@ for msg in response.received_messages:
     print(msg.message.data)
 if ack_ids:
     google.cloud.pubsub.acknowledge_messages("my-subscription", ack_ids)
+
+# Firestore
+google.cloud.firestore.create_document("users", "user123", {"name": "Ada"})
+user = google.cloud.firestore.get_document("users", "user123")
+google.cloud.firestore.update_document("users", "user123", {"name": "Ada Lovelace"})
+for doc in google.cloud.firestore.list_documents("users"):
+    print(doc.id, doc.to_dict())
 ```
 
 `GoogleScopes.BIGQUERY` has `READ`, `WRITE`, and `INSERT_DATA` variants for narrower access.
-`GoogleScopes.CLOUD_STORAGE` has `READ`/`WRITE`. `GoogleScopes.SECRET_MANAGER` and
-`GoogleScopes.PUBSUB` each only have one variant (`CLOUD_PLATFORM` and `PUBSUB` respectively) —
-both are gRPC-based Cloud APIs gated by IAM permissions rather than granular OAuth scopes.
+`GoogleScopes.CLOUD_STORAGE` has `READ`/`WRITE`. `GoogleScopes.SECRET_MANAGER`, `GoogleScopes.PUBSUB`,
+and `GoogleScopes.FIRESTORE` each only have one variant (`CLOUD_PLATFORM`, `PUBSUB`, and
+`DATASTORE` respectively) — all three are gRPC-based Cloud APIs gated by IAM permissions rather
+than granular OAuth scopes.
 
 `BigQueryService.query` starts a query job and returns immediately without waiting for it to
 finish (call `.result()` on the returned job yourself); `query_and_wait` blocks until the query
@@ -157,6 +181,11 @@ row was rejected.
 `PubSubService.pull_messages` does not acknowledge the messages it pulls — call
 `acknowledge_messages` with each message's `ack_id` once you've finished processing it, or it will
 be redelivered after the subscription's ack deadline elapses.
+
+`FirestoreService.create_document` creates or fully overwrites a document; `update_document`
+merges fields into an existing document and fails if it doesn't exist. `get_document` returns
+`None` rather than raising when the document doesn't exist, since Firestore itself doesn't treat
+a missing document as an error.
 
 ### Authentication
 

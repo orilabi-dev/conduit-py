@@ -38,6 +38,12 @@ class GmailScopes(str, Enum):
     SEND = "https://www.googleapis.com/auth/gmail.send"
     MODIFY = "https://www.googleapis.com/auth/gmail.modify"
 
+class CalendarScopes(str, Enum):
+    """OAuth scopes for the Google Calendar API, scoped to events only
+    (this service only reads/writes events, not calendar list management)."""
+    READ = "https://www.googleapis.com/auth/calendar.events.readonly"
+    WRITE = "https://www.googleapis.com/auth/calendar.events"
+
 class BigQueryScopes(str, Enum):
     """OAuth scopes for the Google BigQuery API."""
     READ = "https://www.googleapis.com/auth/bigquery.readonly"
@@ -62,6 +68,10 @@ class PubSubScopes(str, Enum):
     """OAuth scopes for the Google Cloud Pub/Sub API."""
     PUBSUB = "https://www.googleapis.com/auth/pubsub"
 
+class FirestoreScopes(str, Enum):
+    """OAuth scopes for the Google Cloud Firestore API."""
+    DATASTORE = "https://www.googleapis.com/auth/datastore"
+
 class GoogleScopes:
     """Namespace grouping the per-service scope enums.
 
@@ -73,7 +83,9 @@ class GoogleScopes:
     SLIDES = SlideScopes
     DRIVE = DriveScopes
     GMAIL = GmailScopes
+    CALENDAR = CalendarScopes
     BIGQUERY = BigQueryScopes
     SECRET_MANAGER = SecretManagerScopes
     CLOUD_STORAGE = CloudStorageScopes
     PUBSUB = PubSubScopes
+    FIRESTORE = FirestoreScopes
