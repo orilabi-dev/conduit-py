@@ -1,8 +1,9 @@
-"""Aggregate client exposing the Sheets, Docs, and Slides services."""
+"""Aggregate client exposing the Sheets, Docs, Slides, and Drive services."""
 
 from google.auth.credentials import Credentials
 
 from conduit_py.google.workspace.docs.service import DocsService
+from conduit_py.google.workspace.drive.service import DriveService
 from conduit_py.google.workspace.sheets.service import SheetsService
 from conduit_py.google.workspace.slides.service import SlidesService
 
@@ -12,13 +13,14 @@ class WorkspaceClient:
 
     Args:
         credentials: Authenticated Google credentials, shared across all
-            underlying services (Sheets, Docs, Slides).
+            underlying services (Sheets, Docs, Slides, Drive).
 
     Attributes:
         credentials: The credentials passed in, unchanged.
         sheets: A ``SheetsService`` for the Google Sheets API.
         slides: A ``SlidesService`` for the Google Slides API.
         docs: A ``DocsService`` for the Google Docs API.
+        drive: A ``DriveService`` for the Google Drive API.
     """
     def __init__(
         self,
@@ -31,3 +33,5 @@ class WorkspaceClient:
         self.slides = SlidesService(self.credentials)
 
         self.docs = DocsService(self.credentials)
+
+        self.drive = DriveService(self.credentials)

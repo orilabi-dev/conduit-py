@@ -1,9 +1,11 @@
-"""Aggregate client exposing Google Cloud services (BigQuery, Secret Manager)."""
+"""Aggregate client exposing Google Cloud services (BigQuery, Secret Manager,
+Cloud Storage)."""
 
 from google.auth.credentials import Credentials
 
 from conduit_py.google.cloud.bigquery.service import BigQueryService
 from conduit_py.google.cloud.secret_manager.service import SecretManagerService
+from conduit_py.google.cloud.storage.service import CloudStorageService
 
 
 class CloudClient:
@@ -19,6 +21,8 @@ class CloudClient:
             ``project_name``.
         secret_manager: A ``SecretManagerService`` wired up with
             ``credentials`` and ``project_name``.
+        storage: A ``CloudStorageService`` wired up with ``credentials``
+            and ``project_name``.
     """
 
     def __init__(
@@ -32,6 +36,11 @@ class CloudClient:
         )
 
         self.secret_manager = SecretManagerService(
+            credentials=credentials,
+            project_name=project_name
+        )
+
+        self.storage = CloudStorageService(
             credentials=credentials,
             project_name=project_name
         )

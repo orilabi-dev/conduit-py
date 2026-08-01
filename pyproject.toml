@@ -23,6 +23,7 @@ dependencies = [
     "google-auth-oauthlib>=1.4.0",
     "google-cloud-bigquery>=3.42.2",
     "google-cloud-secret-manager>=2.30.0",
+    "google-cloud-storage>=3.13.0",
 ]
 
 [build-system]

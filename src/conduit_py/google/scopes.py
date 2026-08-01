@@ -22,6 +22,11 @@ class SlideScopes(str, Enum):
     READ = "https://www.googleapis.com/auth/presentations.readonly"
     WRITE = "https://www.googleapis.com/auth/presentations"
 
+class DriveScopes(str, Enum):
+    """OAuth scopes for the Google Drive API."""
+    READ = "https://www.googleapis.com/auth/drive.readonly"
+    WRITE = "https://www.googleapis.com/auth/drive"
+
 class BigQueryScopes(str, Enum):
     """OAuth scopes for the Google BigQuery API."""
     READ = "https://www.googleapis.com/auth/bigquery.readonly"
@@ -37,6 +42,11 @@ class SecretManagerScopes(str, Enum):
     """
     CLOUD_PLATFORM = "https://www.googleapis.com/auth/cloud-platform"
 
+class CloudStorageScopes(str, Enum):
+    """OAuth scopes for the Google Cloud Storage API."""
+    READ = "https://www.googleapis.com/auth/devstorage.read_only"
+    WRITE = "https://www.googleapis.com/auth/devstorage.read_write"
+
 class GoogleScopes:
     """Namespace grouping the per-service scope enums.
 
@@ -46,5 +56,7 @@ class GoogleScopes:
     SHEETS = SheetsScope
     DOCS = DocScopes
     SLIDES = SlideScopes
+    DRIVE = DriveScopes
     BIGQUERY = BigQueryScopes
     SECRET_MANAGER = SecretManagerScopes
+    CLOUD_STORAGE = CloudStorageScopes

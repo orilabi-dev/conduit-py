@@ -11,12 +11,14 @@ Currently supported:
     `clear_values`.
   - Docs: `create_doc`, `get_document`, `append_text`.
   - Slides: `create_slide`, `get_presentation`, `add_slide`.
-  - Drive is not yet implemented.
+  - Drive: `upload_file`, `download_file`, `list_files`, `delete_file`, `share_file`.
 - **Google Cloud**: Requires `project_name` (see [Google Cloud](#google-cloud) below).
   - BigQuery: `query`, `query_and_wait`, `get_table`, `list_datasets`, `list_tables`,
     `create_dataset`, `insert_rows_json`.
   - Secret Manager: `create_secret`, `add_secret_version`, `access_secret_version`,
     `list_secrets`, `list_secret_versions`, `delete_secret`, `secret_exists`.
+  - Cloud Storage: `create_bucket`, `list_buckets`, `upload_blob`, `download_blob`,
+    `list_blobs`, `delete_blob`.
 
 ## Install
 
@@ -57,17 +59,29 @@ deck = google.workspace.slides.create_slide("My Deck")
 google.workspace.slides.add_slide(deck["presentationId"])
 ```
 
+Drive manages files directly (no create-an-empty-resource step):
+
+```python
+file = google.workspace.drive.upload_file("report.txt", b"Hello, world!")
+content = google.workspace.drive.download_file(file["id"])
+google.workspace.drive.share_file(file["id"], "teammate@example.com", role="writer")
+```
+
 ### Google Cloud
 
-Pass `project_name` to `Conduit.google(...)` to also get a `.cloud` client exposing `.bigquery` and
-`.secret_manager`. If `project_name` is omitted, `.cloud` is `None`.
+Pass `project_name` to `Conduit.google(...)` to also get a `.cloud` client exposing `.bigquery`,
+`.secret_manager`, and `.storage`. If `project_name` is omitted, `.cloud` is `None`.
 
 ```python
 from conduit_py import Conduit
 from conduit_py.google import GoogleScopes
 
 google = Conduit.google(
-    scopes=[GoogleScopes.BIGQUERY.WRITE, GoogleScopes.SECRET_MANAGER.CLOUD_PLATFORM],
+    scopes=[
+        GoogleScopes.BIGQUERY.WRITE,
+        GoogleScopes.SECRET_MANAGER.CLOUD_PLATFORM,
+        GoogleScopes.CLOUD_STORAGE.WRITE,
+    ],
     oauth_client_path="path/to/client_secret.json",
     token_path="path/to/token.json",
     project_name="my-gcp-project",
@@ -92,12 +106,19 @@ print(value.decode())
 
 if google.cloud.secret_manager.secret_exists("my-secret"):
     google.cloud.secret_manager.delete_secret("my-secret")
+
+# Cloud Storage
+google.cloud.storage.create_bucket("my-bucket")
+google.cloud.storage.upload_blob("my-bucket", "report.txt", "Hello, world!")
+content = google.cloud.storage.download_blob("my-bucket", "report.txt")
+for blob in google.cloud.storage.list_blobs("my-bucket"):
+    print(blob.name)
 ```
 
 `GoogleScopes.BIGQUERY` has `READ`, `WRITE`, and `INSERT_DATA` variants for narrower access.
-`GoogleScopes.SECRET_MANAGER` only has `CLOUD_PLATFORM` — Secret Manager is a gRPC-based Cloud API
-gated by IAM permissions rather than granular OAuth scopes, so the broad `cloud-platform` scope is
-the only one available.
+`GoogleScopes.CLOUD_STORAGE` has `READ`/`WRITE`. `GoogleScopes.SECRET_MANAGER` only has
+`CLOUD_PLATFORM` — Secret Manager is a gRPC-based Cloud API gated by IAM permissions rather than
+granular OAuth scopes, so the broad `cloud-platform` scope is the only one available.
 
 `BigQueryService.query` starts a query job and returns immediately without waiting for it to
 finish (call `.result()` on the returned job yourself); `query_and_wait` blocks until the query
