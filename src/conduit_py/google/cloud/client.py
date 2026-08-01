@@ -1,10 +1,11 @@
 """Aggregate client exposing Google Cloud services (BigQuery, Secret Manager,
-Cloud Storage, Pub/Sub, Firestore)."""
+Cloud Storage, Pub/Sub, Firestore, Cloud Logging)."""
 
 from google.auth.credentials import Credentials
 
 from conduit_py.google.cloud.bigquery.service import BigQueryService
 from conduit_py.google.cloud.firestore.service import FirestoreService
+from conduit_py.google.cloud.logging.service import CloudLoggingService
 from conduit_py.google.cloud.pubsub.service import PubSubService
 from conduit_py.google.cloud.secret_manager.service import SecretManagerService
 from conduit_py.google.cloud.storage.service import CloudStorageService
@@ -28,6 +29,8 @@ class CloudClient:
         pubsub: A ``PubSubService`` wired up with ``credentials`` and
             ``project_name``.
         firestore: A ``FirestoreService`` wired up with ``credentials``
+            and ``project_name``.
+        logging: A ``CloudLoggingService`` wired up with ``credentials``
             and ``project_name``.
     """
 
@@ -57,6 +60,11 @@ class CloudClient:
         )
 
         self.firestore = FirestoreService(
+            credentials=credentials,
+            project_name=project_name
+        )
+
+        self.logging = CloudLoggingService(
             credentials=credentials,
             project_name=project_name
         )

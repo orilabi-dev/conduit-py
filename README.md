@@ -14,6 +14,7 @@ Currently supported:
   - Drive: `upload_file`, `download_file`, `list_files`, `delete_file`, `share_file`.
   - Gmail: `send_message`, `list_messages`, `get_message`, `trash_message`.
   - Calendar: `create_event`, `list_events`, `get_event`, `delete_event`.
+  - Forms: `create_form`, `get_form`, `add_text_question`, `list_responses`.
 - **Google Cloud**: Requires `project_name` (see [Google Cloud](#google-cloud) below).
   - BigQuery: `query`, `query_and_wait`, `get_table`, `list_datasets`, `list_tables`,
     `create_dataset`, `insert_rows_json`.
@@ -25,6 +26,7 @@ Currently supported:
     `pull_messages`, `acknowledge_messages`.
   - Firestore: `create_document`, `get_document`, `update_document`, `delete_document`,
     `list_documents`.
+  - Cloud Logging: `write_log`, `list_entries`.
 
 ## Install
 
@@ -95,11 +97,20 @@ upcoming = google.workspace.calendar.list_events("primary", time_min="2026-01-01
 google.workspace.calendar.delete_event("primary", event["id"])
 ```
 
+Forms only accepts a title on creation — add questions afterward with `add_text_question`, which
+appends to the end of the form (it fetches the form first to compute the correct insertion index):
+
+```python
+form = google.workspace.forms.create_form("Feedback Survey")
+google.workspace.forms.add_text_question(form["formId"], "What's your name?")
+responses = google.workspace.forms.list_responses(form["formId"])
+```
+
 ### Google Cloud
 
 Pass `project_name` to `Conduit.google(...)` to also get a `.cloud` client exposing `.bigquery`,
-`.secret_manager`, `.storage`, `.pubsub`, and `.firestore`. If `project_name` is omitted, `.cloud`
-is `None`.
+`.secret_manager`, `.storage`, `.pubsub`, `.firestore`, and `.logging`. If `project_name` is
+omitted, `.cloud` is `None`.
 
 ```python
 from conduit_py import Conduit
@@ -112,6 +123,7 @@ google = Conduit.google(
         GoogleScopes.CLOUD_STORAGE.WRITE,
         GoogleScopes.PUBSUB.PUBSUB,
         GoogleScopes.FIRESTORE.DATASTORE,
+        GoogleScopes.CLOUD_LOGGING.WRITE,
     ],
     oauth_client_path="path/to/client_secret.json",
     token_path="path/to/token.json",
@@ -163,13 +175,18 @@ user = google.cloud.firestore.get_document("users", "user123")
 google.cloud.firestore.update_document("users", "user123", {"name": "Ada Lovelace"})
 for doc in google.cloud.firestore.list_documents("users"):
     print(doc.id, doc.to_dict())
+
+# Cloud Logging
+google.cloud.logging.write_log("my-log", "Job finished successfully", severity="INFO")
+for entry in google.cloud.logging.list_entries(log_name="my-log", max_results=10):
+    print(entry.payload)
 ```
 
 `GoogleScopes.BIGQUERY` has `READ`, `WRITE`, and `INSERT_DATA` variants for narrower access.
-`GoogleScopes.CLOUD_STORAGE` has `READ`/`WRITE`. `GoogleScopes.SECRET_MANAGER`, `GoogleScopes.PUBSUB`,
-and `GoogleScopes.FIRESTORE` each only have one variant (`CLOUD_PLATFORM`, `PUBSUB`, and
-`DATASTORE` respectively) — all three are gRPC-based Cloud APIs gated by IAM permissions rather
-than granular OAuth scopes.
+`GoogleScopes.CLOUD_STORAGE` and `GoogleScopes.CLOUD_LOGGING` each have `READ`/`WRITE`.
+`GoogleScopes.SECRET_MANAGER`, `GoogleScopes.PUBSUB`, and `GoogleScopes.FIRESTORE` each only have
+one variant (`CLOUD_PLATFORM`, `PUBSUB`, and `DATASTORE` respectively) — all three are gRPC-based
+Cloud APIs gated by IAM permissions rather than granular OAuth scopes.
 
 `BigQueryService.query` starts a query job and returns immediately without waiting for it to
 finish (call `.result()` on the returned job yourself); `query_and_wait` blocks until the query

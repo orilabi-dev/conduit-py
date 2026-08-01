@@ -44,6 +44,16 @@ class CalendarScopes(str, Enum):
     READ = "https://www.googleapis.com/auth/calendar.events.readonly"
     WRITE = "https://www.googleapis.com/auth/calendar.events"
 
+class FormsScopes(str, Enum):
+    """OAuth scopes for the Google Forms API.
+
+    Reading/editing a form's structure and reading its responses are
+    gated by separate scopes.
+    """
+    READ = "https://www.googleapis.com/auth/forms.body.readonly"
+    WRITE = "https://www.googleapis.com/auth/forms.body"
+    RESPONSES_READ = "https://www.googleapis.com/auth/forms.responses.readonly"
+
 class BigQueryScopes(str, Enum):
     """OAuth scopes for the Google BigQuery API."""
     READ = "https://www.googleapis.com/auth/bigquery.readonly"
@@ -72,6 +82,11 @@ class FirestoreScopes(str, Enum):
     """OAuth scopes for the Google Cloud Firestore API."""
     DATASTORE = "https://www.googleapis.com/auth/datastore"
 
+class CloudLoggingScopes(str, Enum):
+    """OAuth scopes for the Google Cloud Logging API."""
+    READ = "https://www.googleapis.com/auth/logging.read"
+    WRITE = "https://www.googleapis.com/auth/logging.write"
+
 class GoogleScopes:
     """Namespace grouping the per-service scope enums.
 
@@ -84,8 +99,10 @@ class GoogleScopes:
     DRIVE = DriveScopes
     GMAIL = GmailScopes
     CALENDAR = CalendarScopes
+    FORMS = FormsScopes
     BIGQUERY = BigQueryScopes
     SECRET_MANAGER = SecretManagerScopes
     CLOUD_STORAGE = CloudStorageScopes
     PUBSUB = PubSubScopes
     FIRESTORE = FirestoreScopes
+    CLOUD_LOGGING = CloudLoggingScopes
