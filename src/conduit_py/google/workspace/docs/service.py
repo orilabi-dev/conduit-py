@@ -170,3 +170,69 @@ class DocsService:
                 status_code=error.status_code,
                 reason=error.reason
             ) from error
+
+    def insert_image(
+        self,
+        document_id: str,
+        image_uri: str
+    ) -> dict:
+        """Insert an image at the end of a document's body.
+
+        Calls ``documents().batchUpdate`` with an ``insertInlineImage``
+        request. Since that request type has no "end of document" shorthand
+        (unlike ``append_text``'s ``insertText``), this first calls
+        ``documents().get`` to compute the correct insertion index.
+
+        Args:
+            document_id: ID of the document to insert into. Must not be
+                empty.
+            image_uri: A publicly accessible URL Google's servers can fetch
+                the image from (e.g. a public GCS object URL, a Drive file
+                shared as "anyone with the link", or a signed URL) — max
+                50MB, must resolve within the fetch window Google enforces
+                on this request. Raw bytes are not accepted; the image must
+                already be hosted somewhere reachable. Must not be empty.
+
+        Returns:
+            A dict representing the Docs API ``BatchUpdateDocumentResponse``.
+
+        Raises:
+            ValueError: If ``document_id`` or ``image_uri`` is empty.
+            GoogleAPIError: If the Docs API request fails; carries the
+                original ``status_code`` and ``reason`` from the failed
+                request.
+        """
+        if not document_id:
+            raise ValueError("Document ID cannot be empty")
+        if not image_uri:
+            raise ValueError("Image URI cannot be empty")
+
+        try:
+            doc = self.service.documents().get(documentId=document_id).execute()
+            end_index = doc["body"]["content"][-1]["endIndex"] - 1
+
+            body = {
+                "requests": [
+                    {
+                        "insertInlineImage": {
+                            "uri": image_uri,
+                            "location": {"index": end_index},
+                        }
+                    }
+                ]
+            }
+
+            response = (
+                self.service
+                .documents()
+                .batchUpdate(documentId=document_id, body=body)
+                .execute()
+            )
+
+            return response
+        except HttpError as error:
+            raise GoogleAPIError(
+                f"Failed to insert image: {error.reason}",
+                status_code=error.status_code,
+                reason=error.reason,
+            ) from error

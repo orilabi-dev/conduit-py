@@ -235,3 +235,48 @@ def test_delete_blob_wraps_api_call_error():
 
     assert exc_info.value.status_code == 404
     assert "blob not found" in exc_info.value.reason
+
+
+def test_create_bucket_notification_rejects_empty_bucket_name():
+    service, _ = _make_service()
+
+    with pytest.raises(ValueError):
+        service.create_bucket_notification("", "my-topic")
+
+
+def test_create_bucket_notification_rejects_empty_topic_id():
+    service, _ = _make_service()
+
+    with pytest.raises(ValueError):
+        service.create_bucket_notification("my-bucket", "")
+
+
+def test_create_bucket_notification_creates_via_bucket_and_notification():
+    service, mock_client = _make_service()
+    mock_bucket = MagicMock()
+    mock_notification = MagicMock()
+    mock_client.bucket.return_value = mock_bucket
+    mock_bucket.notification.return_value = mock_notification
+
+    result = service.create_bucket_notification("my-bucket", "my-topic")
+
+    mock_client.bucket.assert_called_once_with("my-bucket")
+    mock_bucket.notification.assert_called_once_with(
+        topic_name="my-topic",
+        event_types=["OBJECT_FINALIZE"],
+    )
+    mock_notification.create.assert_called_once_with()
+    assert result is mock_notification
+
+
+def test_create_bucket_notification_wraps_api_call_error():
+    service, mock_client = _make_service()
+    mock_client.bucket.return_value.notification.return_value.create.side_effect = (
+        NotFound("topic not found")
+    )
+
+    with pytest.raises(GoogleAPIError) as exc_info:
+        service.create_bucket_notification("my-bucket", "my-topic")
+
+    assert exc_info.value.status_code == 404
+    assert "topic not found" in exc_info.value.reason

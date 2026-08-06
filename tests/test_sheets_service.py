@@ -286,3 +286,79 @@ def test_clear_values_wraps_http_error_with_status_and_reason():
 
     assert exc_info.value.status_code == 403
     assert "permission" in exc_info.value.reason
+
+
+def test_add_chart_rejects_empty_spreadsheet_id():
+    with patch("conduit_py.google.workspace.sheets.service.build"):
+        service = SheetsService(credentials=MagicMock())
+
+    with pytest.raises(ValueError):
+        service.add_chart("", 0, "COLUMN", "My Chart", 0, 10, 0, 3)
+
+
+def test_add_chart_rejects_empty_chart_type():
+    with patch("conduit_py.google.workspace.sheets.service.build"):
+        service = SheetsService(credentials=MagicMock())
+
+    with pytest.raises(ValueError):
+        service.add_chart("abc123", 0, "", "My Chart", 0, 10, 0, 3)
+
+
+def test_add_chart_rejects_empty_title():
+    with patch("conduit_py.google.workspace.sheets.service.build"):
+        service = SheetsService(credentials=MagicMock())
+
+    with pytest.raises(ValueError):
+        service.add_chart("abc123", 0, "COLUMN", "", 0, 10, 0, 3)
+
+
+def test_add_chart_returns_response_on_success():
+    with patch("conduit_py.google.workspace.sheets.service.build") as mock_build:
+        mock_api = MagicMock()
+        mock_api.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {
+            "spreadsheetId": "abc123",
+            "replies": [{"addChart": {"chart": {"chartId": 999}}}],
+        }
+        mock_build.return_value = mock_api
+
+        service = SheetsService(credentials=MagicMock())
+        response = service.add_chart(
+            "abc123", 0, "COLUMN", "My Chart", 0, 10, 0, 3
+        )
+
+    assert response == {
+        "spreadsheetId": "abc123",
+        "replies": [{"addChart": {"chart": {"chartId": 999}}}],
+    }
+
+    _, kwargs = mock_api.spreadsheets.return_value.batchUpdate.call_args
+    assert kwargs["spreadsheetId"] == "abc123"
+    chart_spec = kwargs["body"]["requests"][0]["addChart"]["chart"]["spec"]
+    assert chart_spec["title"] == "My Chart"
+    assert chart_spec["basicChart"]["chartType"] == "COLUMN"
+
+    domain_source = chart_spec["basicChart"]["domains"][0]["domain"]["sourceRange"]["sources"][0]
+    series_source = chart_spec["basicChart"]["series"][0]["series"]["sourceRange"]["sources"][0]
+    assert domain_source["startColumnIndex"] == 0
+    assert domain_source["endColumnIndex"] == 1
+    assert series_source["startColumnIndex"] == 1
+    assert series_source["endColumnIndex"] == 3
+
+    assert kwargs["body"]["requests"][0]["addChart"]["chart"]["position"] == {"newSheet": True}
+
+
+def test_add_chart_wraps_http_error_with_status_and_reason():
+    with patch("conduit_py.google.workspace.sheets.service.build") as mock_build:
+        mock_api = MagicMock()
+        mock_api.spreadsheets.return_value.batchUpdate.return_value.execute.side_effect = (
+            _make_http_error(400, "Invalid requests")
+        )
+        mock_build.return_value = mock_api
+
+        service = SheetsService(credentials=MagicMock())
+
+        with pytest.raises(GoogleAPIError) as exc_info:
+            service.add_chart("abc123", 0, "COLUMN", "My Chart", 0, 10, 0, 3)
+
+    assert exc_info.value.status_code == 400
+    assert "Invalid requests" in exc_info.value.reason

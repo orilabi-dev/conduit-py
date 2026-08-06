@@ -162,3 +162,79 @@ class SlidesService:
                 status_code=error.status_code,
                 reason=error.reason
             ) from error
+
+    def add_sheets_chart(
+        self,
+        presentation_id: str,
+        page_id: str,
+        spreadsheet_id: str,
+        chart_id: int,
+        linked: bool = True
+    ) -> dict:
+        """Embed a chart from a spreadsheet into an existing slide.
+
+        Calls ``presentations().batchUpdate`` with a ``createSheetsChart``
+        request.
+
+        Args:
+            presentation_id: ID of the presentation to add the chart to.
+                Must not be empty.
+            page_id: Object ID of the existing slide to place the chart on
+                (e.g. from ``add_slide(...)``'s response
+                ``replies[0]["createSlide"]["objectId"]``). Must not be
+                empty.
+            spreadsheet_id: ID of the spreadsheet containing the chart. Must
+                not be empty.
+            chart_id: The chart's numeric ID within the spreadsheet (e.g.
+                from ``SheetsService.add_chart(...)``'s response
+                ``replies[0]["addChart"]["chart"]["chartId"]``).
+            linked: If True (default), embeds a live-linked chart that can
+                later be refreshed to reflect updated sheet data. If False,
+                embeds a static image snapshot instead.
+
+        Returns:
+            A dict representing the Slides API ``BatchUpdatePresentationResponse``.
+            ``replies[0]["createSheetsChart"]["objectId"]`` gives the new
+            chart element's object ID on the slide.
+
+        Raises:
+            ValueError: If ``presentation_id``, ``page_id``, or
+                ``spreadsheet_id`` is empty.
+            GoogleAPIError: If the Slides API request fails; carries the
+                original ``status_code`` and ``reason`` from the failed
+                request.
+        """
+        if not presentation_id:
+            raise ValueError("Presentation ID cannot be empty")
+        if not page_id:
+            raise ValueError("Page ID cannot be empty")
+        if not spreadsheet_id:
+            raise ValueError("Spreadsheet ID cannot be empty")
+
+        body = {
+            "requests": [
+                {
+                    "createSheetsChart": {
+                        "spreadsheetId": spreadsheet_id,
+                        "chartId": chart_id,
+                        "linkingMode": "LINKED" if linked else "NOT_LINKED_IMAGE",
+                        "elementProperties": {"pageObjectId": page_id},
+                    }
+                }
+            ]
+        }
+
+        try:
+            response = (
+                self.service
+                .presentations()
+                .batchUpdate(presentationId=presentation_id, body=body)
+                .execute()
+            )
+            return response
+        except HttpError as error:
+            raise GoogleAPIError(
+                f"Failed to add chart to slide: {error.reason}",
+                status_code=error.status_code,
+                reason=error.reason,
+            ) from error

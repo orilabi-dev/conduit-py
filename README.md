@@ -8,9 +8,9 @@ Currently supported:
   caching), and service account credentials.
 - **Google Workspace**:
   - Sheets: `create_sheet`, `get_sheet`, `get_values`, `update_values`, `append_values`,
-    `clear_values`.
-  - Docs: `create_doc`, `get_document`, `append_text`.
-  - Slides: `create_slide`, `get_presentation`, `add_slide`.
+    `clear_values`, `add_chart`.
+  - Docs: `create_doc`, `get_document`, `append_text`, `insert_image`.
+  - Slides: `create_slide`, `get_presentation`, `add_slide`, `add_sheets_chart`.
   - Drive: `upload_file`, `download_file`, `list_files`, `delete_file`, `share_file`.
   - Gmail: `send_message`, `list_messages`, `get_message`, `trash_message`.
   - Calendar: `create_event`, `list_events`, `get_event`, `delete_event`.
@@ -18,11 +18,11 @@ Currently supported:
   - Tasks: `create_task`, `list_tasks`, `complete_task`, `delete_task`.
 - **Google Cloud**: Requires `project_name` (see [Google Cloud](#google-cloud) below).
   - BigQuery: `query`, `query_and_wait`, `get_table`, `list_datasets`, `list_tables`,
-    `create_dataset`, `insert_rows_json`.
+    `create_dataset`, `insert_rows_json`, `load_table_from_uri`, `export_table_to_gcs`.
   - Secret Manager: `create_secret`, `add_secret_version`, `access_secret_version`,
     `list_secrets`, `list_secret_versions`, `delete_secret`, `secret_exists`.
   - Cloud Storage: `create_bucket`, `list_buckets`, `upload_blob`, `download_blob`,
-    `list_blobs`, `delete_blob`.
+    `list_blobs`, `delete_blob`, `create_bucket_notification`.
   - Pub/Sub: `create_topic`, `list_topics`, `publish_message`, `create_subscription`,
     `pull_messages`, `acknowledge_messages`.
   - Firestore: `create_document`, `get_document`, `update_document`, `delete_document`,
@@ -66,10 +66,14 @@ Docs and Slides follow the same create-then-operate shape:
 ```python
 doc = google.workspace.docs.create_doc("My Doc")
 google.workspace.docs.append_text(doc["documentId"], "Hello, world!")
+google.workspace.docs.insert_image(doc["documentId"], "https://example.com/chart.png")
 
 deck = google.workspace.slides.create_slide("My Deck")
-google.workspace.slides.add_slide(deck["presentationId"])
+slide = google.workspace.slides.add_slide(deck["presentationId"])
 ```
+
+`insert_image`'s `image_uri` must be a URL Google's servers can fetch (a public GCS object, a
+Drive file shared as "anyone with the link", or a signed URL) — raw bytes aren't accepted.
 
 Drive manages files directly (no create-an-empty-resource step):
 
@@ -151,6 +155,9 @@ table = google.cloud.bigquery.get_table("my_dataset", "my_table")
 for dataset in google.cloud.bigquery.list_datasets():
     print(dataset.dataset_id)
 
+google.cloud.bigquery.load_table_from_uri("my_dataset", "my_table", "gs://my-bucket/data.csv")
+google.cloud.bigquery.export_table_to_gcs("my_dataset", "my_table", "gs://my-bucket/export-*.csv")
+
 # Secret Manager
 google.cloud.secret_manager.create_secret("my-secret")
 google.cloud.secret_manager.add_secret_version("my-secret", payload="hunter2")
@@ -166,6 +173,7 @@ google.cloud.storage.upload_blob("my-bucket", "report.txt", "Hello, world!")
 content = google.cloud.storage.download_blob("my-bucket", "report.txt")
 for blob in google.cloud.storage.list_blobs("my-bucket"):
     print(blob.name)
+google.cloud.storage.create_bucket_notification("my-bucket", "my-topic")
 
 # Pub/Sub
 google.cloud.pubsub.create_topic("my-topic")
@@ -214,7 +222,10 @@ finish (call `.result()` on the returned job yourself); `query_and_wait` blocks 
 completes and returns the result rows directly. `insert_rows_json` streams rows into a table
 without a load job; unlike other BigQuery methods it doesn't raise on a per-row failure by
 default, so this wrapper checks the returned error list itself and raises `GoogleAPIError` if any
-row was rejected.
+row was rejected. `load_table_from_uri` and `export_table_to_gcs` both block until their job
+completes (like `query_and_wait`, not `query`) and are the idiomatic way to move data between GCS
+and BigQuery — `load_table_from_uri` parses the source file itself (with schema autodetection),
+unlike `insert_rows_json`, which only accepts already-parsed Python dicts.
 
 `PubSubService.pull_messages` does not acknowledge the messages it pulls — call
 `acknowledge_messages` with each message's `ack_id` once you've finished processing it, or it will
@@ -224,6 +235,54 @@ be redelivered after the subscription's ack deadline elapses.
 merges fields into an existing document and fails if it doesn't exist. `get_document` returns
 `None` rather than raising when the document doesn't exist, since Firestore itself doesn't treat
 a missing document as an error.
+
+### Cross-service workflows
+
+The services above are designed to compose. Two common patterns:
+
+**A file lands in a bucket → gets loaded into BigQuery → an alert goes out.**
+`create_bucket_notification` is what makes "a file landed" externally observable — it configures
+the bucket to publish a Pub/Sub message on every new object, which some external trigger (a Cloud
+Function, a polling worker using `pull_messages`, etc.) picks up and reacts to by calling this
+library:
+
+```python
+# One-time setup
+google.cloud.pubsub.create_topic("csv-landed")
+google.cloud.storage.create_bucket_notification("my-bucket", "csv-landed")
+
+# Triggered handler, run once per new file (uri comes from the Pub/Sub message)
+def handle_new_csv(uri: str) -> None:
+    google.cloud.bigquery.load_table_from_uri("my_dataset", "my_table", uri)
+    google.workspace.gmail.send_message(
+        "team@example.com", "New data loaded", f"Loaded {uri} into my_table."
+    )
+```
+
+**Query data → put it in a spreadsheet → chart it → drop that chart into a slide deck.**
+`add_chart`'s response gives you the `chartId` that `add_sheets_chart` needs — the chart it
+creates is *linked*, so it can be refreshed later to reflect updated sheet data rather than being
+a static snapshot:
+
+```python
+rows = google.cloud.bigquery.query_and_wait("SELECT month, revenue FROM my_dataset.sales")
+
+sheet = google.workspace.sheets.create_sheet("Sales Report")
+spreadsheet_id = sheet["spreadsheetId"]
+values = [["Month", "Revenue"]] + [[row.month, row.revenue] for row in rows]
+google.workspace.sheets.update_values(spreadsheet_id, "Sheet1!A1", values)
+
+chart = google.workspace.sheets.add_chart(
+    spreadsheet_id, sheet_id=0, chart_type="COLUMN", title="Revenue by Month",
+    start_row_index=0, end_row_index=len(values), start_column_index=0, end_column_index=2,
+)
+chart_id = chart["replies"][0]["addChart"]["chart"]["chartId"]
+
+deck = google.workspace.slides.create_slide("Q1 Review")
+slide = google.workspace.slides.add_slide(deck["presentationId"])
+slide_id = slide["replies"][0]["createSlide"]["objectId"]
+google.workspace.slides.add_sheets_chart(deck["presentationId"], slide_id, spreadsheet_id, chart_id)
+```
 
 ### Authentication
 

@@ -135,3 +135,87 @@ def test_add_slide_wraps_http_error_with_status_and_reason():
 
     assert exc_info.value.status_code == 400
     assert "Invalid requests" in exc_info.value.reason
+
+
+def test_add_sheets_chart_rejects_empty_presentation_id():
+    with patch("conduit_py.google.workspace.slides.service.build"):
+        service = SlidesService(credentials=MagicMock())
+
+    with pytest.raises(ValueError):
+        service.add_sheets_chart("", "slide456", "abc123", 999)
+
+
+def test_add_sheets_chart_rejects_empty_page_id():
+    with patch("conduit_py.google.workspace.slides.service.build"):
+        service = SlidesService(credentials=MagicMock())
+
+    with pytest.raises(ValueError):
+        service.add_sheets_chart("pres123", "", "abc123", 999)
+
+
+def test_add_sheets_chart_rejects_empty_spreadsheet_id():
+    with patch("conduit_py.google.workspace.slides.service.build"):
+        service = SlidesService(credentials=MagicMock())
+
+    with pytest.raises(ValueError):
+        service.add_sheets_chart("pres123", "slide456", "", 999)
+
+
+def test_add_sheets_chart_returns_response_on_success():
+    with patch("conduit_py.google.workspace.slides.service.build") as mock_build:
+        mock_api = MagicMock()
+        mock_api.presentations.return_value.batchUpdate.return_value.execute.return_value = {
+            "presentationId": "pres123",
+            "replies": [{"createSheetsChart": {"objectId": "chart789"}}],
+        }
+        mock_build.return_value = mock_api
+
+        service = SlidesService(credentials=MagicMock())
+        response = service.add_sheets_chart("pres123", "slide456", "abc123", 999)
+
+    assert response == {
+        "presentationId": "pres123",
+        "replies": [{"createSheetsChart": {"objectId": "chart789"}}],
+    }
+
+    _, kwargs = mock_api.presentations.return_value.batchUpdate.call_args
+    assert kwargs["presentationId"] == "pres123"
+    request = kwargs["body"]["requests"][0]["createSheetsChart"]
+    assert request["spreadsheetId"] == "abc123"
+    assert request["chartId"] == 999
+    assert request["elementProperties"]["pageObjectId"] == "slide456"
+    assert request["linkingMode"] == "LINKED"
+
+
+def test_add_sheets_chart_not_linked_produces_image_linking_mode():
+    with patch("conduit_py.google.workspace.slides.service.build") as mock_build:
+        mock_api = MagicMock()
+        mock_api.presentations.return_value.batchUpdate.return_value.execute.return_value = {
+            "presentationId": "pres123",
+            "replies": [{"createSheetsChart": {"objectId": "chart789"}}],
+        }
+        mock_build.return_value = mock_api
+
+        service = SlidesService(credentials=MagicMock())
+        service.add_sheets_chart("pres123", "slide456", "abc123", 999, linked=False)
+
+    _, kwargs = mock_api.presentations.return_value.batchUpdate.call_args
+    request = kwargs["body"]["requests"][0]["createSheetsChart"]
+    assert request["linkingMode"] == "NOT_LINKED_IMAGE"
+
+
+def test_add_sheets_chart_wraps_http_error_with_status_and_reason():
+    with patch("conduit_py.google.workspace.slides.service.build") as mock_build:
+        mock_api = MagicMock()
+        mock_api.presentations.return_value.batchUpdate.return_value.execute.side_effect = (
+            _make_http_error(400, "Invalid requests")
+        )
+        mock_build.return_value = mock_api
+
+        service = SlidesService(credentials=MagicMock())
+
+        with pytest.raises(GoogleAPIError) as exc_info:
+            service.add_sheets_chart("pres123", "slide456", "abc123", 999)
+
+    assert exc_info.value.status_code == 400
+    assert "Invalid requests" in exc_info.value.reason

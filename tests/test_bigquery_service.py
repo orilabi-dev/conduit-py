@@ -253,3 +253,108 @@ def test_insert_rows_json_raises_on_partial_row_failures():
 
     assert exc_info.value.status_code is None
     assert str(row_errors) in exc_info.value.reason
+
+
+def test_load_table_from_uri_rejects_empty_dataset_id():
+    service, _ = _make_service()
+
+    with pytest.raises(ValueError):
+        service.load_table_from_uri("", "my_table", "gs://my-bucket/data.csv")
+
+
+def test_load_table_from_uri_rejects_empty_table_id():
+    service, _ = _make_service()
+
+    with pytest.raises(ValueError):
+        service.load_table_from_uri("my_dataset", "", "gs://my-bucket/data.csv")
+
+
+def test_load_table_from_uri_rejects_empty_source_uri():
+    service, _ = _make_service()
+
+    with pytest.raises(ValueError):
+        service.load_table_from_uri("my_dataset", "my_table", "")
+
+
+def test_load_table_from_uri_calls_client_and_waits_for_job():
+    service, mock_client = _make_service()
+    mock_client.project = "test-project"
+    fake_result = MagicMock(name="LoadJobResult")
+    mock_job = MagicMock()
+    mock_job.result.return_value = fake_result
+    mock_client.load_table_from_uri.return_value = mock_job
+
+    result = service.load_table_from_uri("my_dataset", "my_table", "gs://my-bucket/data.csv")
+
+    args, kwargs = mock_client.load_table_from_uri.call_args
+    assert args[0] == "gs://my-bucket/data.csv"
+    assert args[1] == "test-project.my_dataset.my_table"
+    assert "job_config" in kwargs
+    assert result is fake_result
+
+
+def test_load_table_from_uri_wraps_api_call_error_with_code_and_reason():
+    service, mock_client = _make_service()
+    mock_client.project = "test-project"
+    mock_client.load_table_from_uri.return_value.result.side_effect = NotFound(
+        "dataset not found"
+    )
+
+    with pytest.raises(GoogleAPIError) as exc_info:
+        service.load_table_from_uri("my_dataset", "my_table", "gs://my-bucket/data.csv")
+
+    assert exc_info.value.status_code == 404
+    assert "dataset not found" in exc_info.value.reason
+
+
+def test_export_table_to_gcs_rejects_empty_dataset_id():
+    service, _ = _make_service()
+
+    with pytest.raises(ValueError):
+        service.export_table_to_gcs("", "my_table", "gs://my-bucket/export-*.csv")
+
+
+def test_export_table_to_gcs_rejects_empty_table_id():
+    service, _ = _make_service()
+
+    with pytest.raises(ValueError):
+        service.export_table_to_gcs("my_dataset", "", "gs://my-bucket/export-*.csv")
+
+
+def test_export_table_to_gcs_rejects_empty_destination_uri():
+    service, _ = _make_service()
+
+    with pytest.raises(ValueError):
+        service.export_table_to_gcs("my_dataset", "my_table", "")
+
+
+def test_export_table_to_gcs_calls_client_and_waits_for_job():
+    service, mock_client = _make_service()
+    mock_client.project = "test-project"
+    fake_result = MagicMock(name="ExtractJobResult")
+    mock_job = MagicMock()
+    mock_job.result.return_value = fake_result
+    mock_client.extract_table.return_value = mock_job
+
+    result = service.export_table_to_gcs(
+        "my_dataset", "my_table", "gs://my-bucket/export-*.csv"
+    )
+
+    mock_client.extract_table.assert_called_once_with(
+        "test-project.my_dataset.my_table", "gs://my-bucket/export-*.csv"
+    )
+    assert result is fake_result
+
+
+def test_export_table_to_gcs_wraps_api_call_error_with_code_and_reason():
+    service, mock_client = _make_service()
+    mock_client.project = "test-project"
+    mock_client.extract_table.return_value.result.side_effect = NotFound(
+        "table not found"
+    )
+
+    with pytest.raises(GoogleAPIError) as exc_info:
+        service.export_table_to_gcs("my_dataset", "my_table", "gs://my-bucket/export-*.csv")
+
+    assert exc_info.value.status_code == 404
+    assert "table not found" in exc_info.value.reason

@@ -347,3 +347,115 @@ class SheetsService:
                 status_code=error.status_code,
                 reason=error.reason
             ) from error
+
+    def add_chart(
+        self,
+        spreadsheet_id: str,
+        sheet_id: int,
+        chart_type: str,
+        title: str,
+        start_row_index: int,
+        end_row_index: int,
+        start_column_index: int,
+        end_column_index: int
+    ) -> dict:
+        """Create a chart from a data range, placed on a new sheet tab.
+
+        Calls ``spreadsheets().batchUpdate`` with an ``addChart`` request.
+        The first column of the given range (``start_column_index`` to
+        ``start_column_index + 1``) is used as the chart's domain (labels);
+        the remaining columns (``start_column_index + 1`` to
+        ``end_column_index``) are used as data series.
+
+        Args:
+            spreadsheet_id: ID of the spreadsheet containing the source data.
+                Must not be empty.
+            sheet_id: The numeric ID of the sheet (tab) the source range is
+                on.
+            chart_type: The chart type, e.g. ``"COLUMN"``, ``"LINE"``,
+                ``"BAR"``, ``"PIE"``. Must not be empty.
+            title: Title for the chart. Must not be empty.
+            start_row_index: Start row of the source range (0-indexed,
+                inclusive).
+            end_row_index: End row of the source range (0-indexed,
+                exclusive).
+            start_column_index: Start column of the source range (0-indexed,
+                inclusive).
+            end_column_index: End column of the source range (0-indexed,
+                exclusive).
+
+        Returns:
+            A dict representing the Sheets API ``BatchUpdateSpreadsheetResponse``.
+            ``replies[0]["addChart"]["chart"]["chartId"]`` gives the new
+            chart's ID, needed to embed it in a slide via
+            ``SlidesService.add_sheets_chart``.
+
+        Raises:
+            ValueError: If ``spreadsheet_id``, ``chart_type``, or ``title``
+                is empty.
+            GoogleAPIError: If the Sheets API request fails; carries the
+                original ``status_code`` and ``reason`` from the failed
+                request.
+        """
+        if not spreadsheet_id:
+            raise ValueError("Spreadsheet ID cannot be empty")
+        if not chart_type:
+            raise ValueError("Chart type cannot be empty")
+        if not title:
+            raise ValueError("Title cannot be empty")
+
+        source_range = {
+            "sheetId": sheet_id,
+            "startRowIndex": start_row_index,
+            "endRowIndex": end_row_index,
+        }
+        domain_range = {
+            **source_range,
+            "startColumnIndex": start_column_index,
+            "endColumnIndex": start_column_index + 1,
+        }
+        series_range = {
+            **source_range,
+            "startColumnIndex": start_column_index + 1,
+            "endColumnIndex": end_column_index,
+        }
+
+        body = {
+            "requests": [
+                {
+                    "addChart": {
+                        "chart": {
+                            "spec": {
+                                "title": title,
+                                "basicChart": {
+                                    "chartType": chart_type,
+                                    "legendPosition": "BOTTOM_LEGEND",
+                                    "domains": [
+                                        {"domain": {"sourceRange": {"sources": [domain_range]}}}
+                                    ],
+                                    "series": [
+                                        {"series": {"sourceRange": {"sources": [series_range]}}}
+                                    ],
+                                },
+                            },
+                            "position": {"newSheet": True},
+                        }
+                    }
+                }
+            ]
+        }
+
+        try:
+            response = (
+                self.service
+                .spreadsheets()
+                .batchUpdate(spreadsheetId=spreadsheet_id, body=body)
+                .execute()
+            )
+            return response
+        except HttpError as error:
+            raise GoogleAPIError(
+                f"Failed to add chart: {error.reason}",
+                status_code=error.status_code,
+                reason=error.reason,
+            ) from error
